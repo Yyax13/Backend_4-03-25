@@ -16,9 +16,7 @@ const pool = new Pool({
 async function testConnection() {
     let client;
     try {
-        client = await pool.connect();
-        console.log('CONEXÃO BEM SUCEDIDA');
-        
+        client = await pool.connect().then(console.log('CONEXÃO BEM SUCEDIDA'));
     } catch(err) {
         console.error("CONEXÃO MAL SUCEDIDA", err.stack || err);
         console.log(err.code)
