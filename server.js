@@ -7,7 +7,6 @@ const path = require('path');
 const sanitizeHtml = require('sanitize-html'); 
 const pool = require('./db');
 const bcrypt = require('bcrypt');
-const { error } = require('console');
 const saltRouds = Number(process.env.HASH_SALT);
 
 const app = express();
