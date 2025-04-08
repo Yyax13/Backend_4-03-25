@@ -39,8 +39,9 @@ async function setupTables() {
             UserName varchar(255),
             UserPass varchar(255),
             Power INT,
-            Itens ARRAY,
-            Posicao INT
+            Itens INT[],
+            Posicao INT,
+            LastItemID INT
             )
             `).then(console.log('Tabela magos criada/já existe'));
 
@@ -62,29 +63,27 @@ async function setupTables() {
                 9: Anjos
             */
 
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS itens (
-                ID SERIAL UNIQUE,
-                ItemName varchar(255),
-                Catagory INT,
-                Risk INT,
-                AcessLevel INT,
-                Power INT,
-                Data JSONB
-                )
-                `).then(console.log('Tabela itens criada/já existe'));
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS itens (
+            ID SERIAL UNIQUE,
+            ItemName varchar(255),
+            Catagory INT,
+            Risk INT,
+            AcessLevel INT,
+            Power INT,
+            Data JSONB
+            )
+        `).then(console.log('Tabela itens criada/já existe'));
 
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS cofres (
-                VaultID SERIAL UNIQUE,
-                ItemID ARRAY)
-                `).then(console.log('Tabela cofres criada/já existe'));
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS cofres (
+            VaultID SERIAL UNIQUE,
+            ItemID INT[])
+        `).then(console.log('Tabela cofres criada/já existe'));
     } catch (err) {
         console.error(err);
-    } finally {
-        await pool.end()
     }
-}
+};
 
 setupTables()
 testConnection()

@@ -33,6 +33,7 @@ async function verifyPass(passwd, hash) {
         return match //true or false
     } catch (err) {
         console.error(err);
+        return null
     }
 };
 
@@ -40,12 +41,26 @@ async function signUp(UserName, UserPass) {
     try {
         const HashPass = await hashPass(UserPass);
         const { rows } = await pool.query(`
-            INSERT INTO magos (UserName, UserPass) VALUES ($1, $2) RETURNING UID
-            `, [UserName, HashPass]);
+            INSERT INTO magos (UserName, UserPass, Posicao) VALUES ($1, $2, $3) RETURNING UID
+            `, [UserName, HashPass, 3]);
         console.log('Mago cadastrado, UID:', rows[0].UID);
     } catch (err) {
         console.error(err);
-    } finally {
-        pool.end();
-    }
+    };
 };
+
+async function signIn(UserName, UserPass) {
+    try {
+        const { rows } = await pool.query(`
+            SELECT UserPass WHERE UserName = ($1)
+            `, [UserName])
+        const match = await verifyPass(rows[0].UserPass, await hashPass(UserPass));
+        return match
+    } catch (err) {
+        console.error(err);
+    };
+};
+
+app.listen(PORT, () => {
+    console.log('Servidor rodando na porta', PORT);
+});
