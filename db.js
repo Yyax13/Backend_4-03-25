@@ -41,6 +41,7 @@ async function setupTables() {
             Power INT,
             Itens INT[],
             Posicao INT,
+            Jail BOOLEAN,
             LastItemID INT
             )
             `).then(console.log('Tabela magos criada/já existe'));
@@ -67,7 +68,7 @@ async function setupTables() {
             CREATE TABLE IF NOT EXISTS itens (
             ID SERIAL UNIQUE,
             ItemName varchar(255),
-            Catagory INT,
+            Category INT,
             Risk INT,
             AcessLevel INT,
             Power INT,
