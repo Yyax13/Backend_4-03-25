@@ -331,7 +331,7 @@ async function tome(Spell) {
             const player = Spell.caller;
             const secret = genGuardianSecret(player);
             return secret
-        } if (isNumberObject(Spell.target)) {
+        } else if (isNumberObject(Spell.target)) {
             const Target = Spell.Target;
             const { Player } = searchPlayer(Target);
             const LastItem = Player[0].LastItemID;
@@ -340,7 +340,7 @@ async function tome(Spell) {
         } else {
             console.error('Spell.name deve ser "Guardian" ou int (UID do player-alvo)');
         }
-    } if (Spell.name == 'Aperire') { //Significa Abre-te
+    } else if (Spell.name == 'Aperire') { //Significa Abre-te
         const string = string(Spell.target);
         const palavra = a1z26('d', string);
         return palavra
@@ -362,7 +362,7 @@ async function a1z26(method, string) { //method deve ser e ou d (encrypt, decryp
             }
         }
         return encrypted.substring(0, encrypted.length - separator.length);
-    } if (method === 'd') {
+    } else if (method === 'd') {
         encrypted = encrypted.toLowerCase();
         let split = encrypted.split(separator);
         let decrypted = "";
@@ -404,7 +404,7 @@ app.get('/api/guardian-quest', async (req, res) => {
         `, [0, Player[0].UID]).then(console.log(`O mago de UID ${Player[0].UID} acaba de ascender para Sacerdote`));
         const openVaultResult = await openVault(vaultID, Player[0].UID);
         res.status(openVaultResult.status).json(openVaultResult)
-    } if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
+    } else if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
         result.status = 401;
         result.sucess = false;
         result.message = 'Palavra incorreta, verifique e tente novamente!';
