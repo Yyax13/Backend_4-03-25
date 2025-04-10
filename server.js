@@ -8,7 +8,6 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('./db');
 const bcrypt = require('bcrypt');
 const { isNumberObject } = require('util/types');
-const { getRandomValues } = require('crypto');
 const saltRouds = Number(process.env.HASH_SALT);
 
 const app = express();
@@ -48,12 +47,24 @@ async function verifyPass(passwd, hash) {
 async function signUp(UserName, UserPass) {
     try {
         const HashPass = await hashPass(UserPass);
+        const randomNumber = Math.floor(Math.random() * 5) + 1;
         const { rows } = await pool.query(`
-            INSERT INTO magos (UserName, UserPass, Posicao, Jail) VALUES ($1, $2, $3) RETURNING UID
-            `, [UserName, HashPass, 3, false]);
+            INSERT INTO magos (UserName, UserPass, Posicao, Jail, RandomInt) VALUES ($1, $2, $3, $4, $5) RETURNING UID
+            `, [UserName, HashPass, 3, false, randomNumber]);
         console.log('Mago cadastrado, UID:', rows[0].UID);
+        result.status = 201;
+        result.sucess = true;
+        result.message = `Mago cadastrado, UID: ${rows[0].UID}`;
+        return result
     } catch (err) {
         console.error(err);
+        result.status = 500;
+        result.sucess = false;
+        result.message = `Ocorreu um erro na func signUp (verifique .others)`;
+        result.others = {
+            error: err
+        };
+        return result
     };
 };
 
@@ -76,15 +87,42 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             Description: ItemDescription
         };
         const { rows } = await pool.query(`
-            INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID
+            INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
             `, [ItemName, Category, Risk, AcessLevel, Power, Data])
-            .then(console.log(rows[0].ID)
-            .then(await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID], playerID)
-            .then(console.log(`LasItemID do mago de ID ${playerID} foi atualizado.`))));
+            .then(async () => {
+                console.log(rows[0].ID);
+                async function getItens(UID) {
+                    try {
+                        const { rows } = await pool.query(`
+                            SELECT Itens FROM magos WHERE UID = ($1)
+                        `, [UID]);
+                        return rows[0].Itens;
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
+                try {
+                    const itensFromPlayer = await getItens(playerID);
+                    console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+                    const newItensArray = [...itensFromPlayer, rows[0].ID];
+                    
+                    await pool.query(`
+                        UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+                    `, [newItensArray, playerID]);
+                    console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+
+                    await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID, playerID]);
+                    console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
+                    
+                    await updatePower(playerID, rows[0].Power);
+                } catch (err) {
+                    console.error(err);
+                }
+            });
         
         result.status = 200;
         result.sucess = true;
-        result.message = `A inserção foi um sucesso, disponibilize a opção updatePower para o player, ou o poder não será atualizado.`;
+        result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
         result.others = {
             ItemID: rows[0].ID
         };
@@ -92,6 +130,13 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
 
     } catch (err) {
         console.error(err);
+        result.status = 500;
+        result.sucess = false;
+        result.message = `Ocorreu um erro na func insertNewItem`;
+        result.others = {
+            error: err
+        };
+        return result
     };
 };
 
@@ -138,7 +183,7 @@ async function searchItem(ItemID) {
 
 async function searchPlayer(UserName) {
     const { rows } = await pool.query(`
-        SELECT UID, UserName, Power, Itens, Posicao, Jail, LastItemID FROM magos WHERE UserName = ($1)
+        SELECT UID, UserName, Power, Itens, Posicao, Jail, LastItemID, RandomInt FROM magos WHERE UserName = ($1)
     `, [UserName]);
     console.log('Dados retornados:', rows);
 
@@ -161,7 +206,8 @@ async function searchPlayer(UserName) {
         Itens: rows[0].Itens,
         Posição: Posicao,
         Jail: Jail,
-        LastItemID: rows[0].LastItemID
+        LastItemID: rows[0].LastItemID,
+        RandomInt: rows[0].RandomInt
     };
     console.log(Player);
     return Player
@@ -238,7 +284,7 @@ async function openVault(VaultID, playerID) {
     };
 };
 
-async function genGuardianSecret(wordInteger) {
+async function genGuardianSecret(playerID) {
     const wordsMap = {
         1: 'Sapientia', //Sabedoria
         2: 'Plenitudo', //Plenitude
@@ -246,7 +292,10 @@ async function genGuardianSecret(wordInteger) {
         4: 'Dextrum cornu sum et Bolsonaro suffragium fero', //Sou de direita e voto no Bolsonaro
         5: 'Retine lacrimas et fac L' //Segure suas lágrimas e faça L
     };
-    const palavra = wordsMap[wordInteger];
+    const { rows } = await pool.query(`
+        SELECT RandomInt FROM magos WHERE UID = ($1)
+    `, [playerID])
+    const palavra = wordsMap[rows[0].RandomInt];
 
     const segredo = palavra.toLowerCase;
     const segredoCriptografado = a1z26('e', segredo);
@@ -266,27 +315,33 @@ async function updatePower(playerID, powerToInsert) {
         const { rows } = await pool.query(`
             UPDATE magos SET Power = ($1) WHERE UID = ($2)
         `, [newPower, playerID]);
-        
     } catch (err) {
         console.error(err)
     }
 };
 
 async function tome(Spell) {
-    if (Spell[0].name == 'Ego coniecto') { //Significa Adivinharei
-        if (Spell[0].target == 'Guardião') {
-            return // Vou implementar toda a quest do guardião e dai vou resolver esse feitiço
-        } if (isNumberObject(Spell[0].target)) {
-            const Target = Spell[0].Target;
+    /* Spell = {
+        name = 'NOME DO FEITIÇO',
+        target = UID de um player ou 'Guardian',
+        caller = UID do player que chamou
+    }*/
+    if (Spell.name == 'Ego coniecto') { //Significa Adivinharei
+        if (Spell.target == 'Guardian') {
+            const player = Spell.caller;
+            const secret = genGuardianSecret(player);
+            return secret
+        } if (isNumberObject(Spell.target)) {
+            const Target = Spell.Target;
             const { Player } = searchPlayer(Target);
             const LastItem = Player[0].LastItemID;
-            console.log(`Ultimo item do mago ${Player[0].UserName}`, LastItem);
+            console.log(`Ultimo item do mago ${Player[0].UserName}` + LastItem);
             return LastItem
         } else {
-            console.error('Spell[0].name deve ser "Guardião" ou int (UID do player-alvo)');
+            console.error('Spell.name deve ser "Guardian" ou int (UID do player-alvo)');
         }
-    } if (Spell[0].name == 'Aperire') { //Significa Abre-te
-        const string = string(Spell[0].target);
+    } if (Spell.name == 'Aperire') { //Significa Abre-te
+        const string = string(Spell.target);
         const palavra = a1z26('d', string);
         return palavra
     }; 
@@ -324,37 +379,64 @@ async function a1z26(method, string) { //method deve ser e ou d (encrypt, decryp
     };
 };
 
+app.post('/api/sign-up', async (req, res) => {
+    const userNameToInsert = req.body.username;
+    const userPassToInsert = req.body.userpass;
+
+    const signInCall = await signIn(userNameToInsert, userPassToInsert);
+    res.status(signInCall.status).json(signInCall);
+});
+
+app.get('/api/search-player', async (req, res) => {
+
+});
+
 app.get('/api/guardian-quest', async (req, res) => {
     const playerID = req.query.PId;
     const vaultID = req.query.VId;
     const secretSendByPlayer = req.query.SSBPlayer;
 
-    const wordINT = Math.floor(Math.random() * 5) + 1;
-    const GuardianSecret = await genGuardianSecret(wordINT);
+    const GuardianSecret = await genGuardianSecret(playerID);
     if (secretSendByPlayer == a1z26('d', GuardianSecret)) {
-        const Player = searchPlayer(playerID);
+        const Player = await searchPlayer(playerID);
         await pool.query(`
             UPDATE magos SET Posicao = ($1) WHERE UID = ($2)
-        `, [0, playerID]).then(console.log(`O mago de UID ${playerID} acaba de ascender para Sacerdote`));
-        const openVaultResult = await openVault(vaultID, playerID);
+        `, [0, Player[0].UID]).then(console.log(`O mago de UID ${Player[0].UID} acaba de ascender para Sacerdote`));
+        const openVaultResult = await openVault(vaultID, Player[0].UID);
         res.status(openVaultResult.status).json(openVaultResult)
     } if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
-        res.status(200).json({
-            status: 200,
-            message: "Palavra incorreta, verifique e tente novamente!",
-            sucess: false
-        });
+        result.status = 401;
+        result.sucess = false;
+        result.message = 'Palavra incorreta, verifique e tente novamente!';
+        res.status(result.status).json(result);
     } else {
-        res.status(500).json({
-            status: 500,
-            message: "Erro interno, verifique a implementação que consome este endpoint.",
-            sucess: false
-        });
+        result.status = 500;
+        result.sucess = false;
+        result.message = "Erro interno, verifique a implementação que consome este endpoint.";
+        res.status(result.status).json(result);
     }
 
 
 });
 
+app.get('/api/find-vaults', async (req, res) => {
+    const howMany = Number(req.query.n);
+    const vaults = await findVaults();
+    let vaultsForReturn = [];
+    for (let i = 0; i < howMany - 1; i++) {
+        if (vaultsForReturn.length == howMany) {
+            break
+        } else {
+            vaultsForReturn = [...vaults[i]];
+        }
+    }
+    result.status = 200;
+    result.sucess = true;
+    result.message = "A seguir, os VIDs requisitados";
+    result.others = vaultsForReturn;
+    res.status(result.status).json(result);
+})
+
 app.listen(PORT, () => {
-    console.log('Servidor rodando na porta', PORT);
+    console.log('Servidor rodando na porta ' + PORT);
 });

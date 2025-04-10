@@ -33,6 +33,9 @@ async function setupTables() {
             2: Absolute,
             3: Iniciante
         */
+        /* RandomInt
+            Define a palavra para a quest do mago, deve estar entre 1 e 5
+        */
         await pool.query(`
             CREATE TABLE IF NOT EXISTS magos (
             UID SERIAL UNIQUE,
@@ -42,7 +45,8 @@ async function setupTables() {
             Itens INT[],
             Posicao INT,
             Jail BOOLEAN,
-            LastItemID INT
+            LastItemID INT DEFAULT 0,
+            RandomInt INT
             )
             `).then(console.log('Tabela magos criada/já existe'));
 
