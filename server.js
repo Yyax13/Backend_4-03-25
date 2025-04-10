@@ -8,6 +8,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('./db');
 const bcrypt = require('bcrypt');
 const { isNumberObject } = require('util/types');
+const { getRandomValues } = require('crypto');
 const saltRouds = Number(process.env.HASH_SALT);
 
 const app = express();
@@ -16,6 +17,13 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3001;
+
+let result = {
+    status: null,
+    sucess: null,
+    message: null,
+    others: null
+};
 
 async function hashPass(passwd) {
     try {
@@ -61,7 +69,7 @@ async function signIn(UserName, UserPass) {
     };
 };
 
-async function insertNewItem(ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
+async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
     try {
         const Data = {
             Lore: ItemLore,
@@ -69,25 +77,23 @@ async function insertNewItem(ItemName, Category, Risk, AcessLevel, Power, ItemLo
         };
         const { rows } = await pool.query(`
             INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID
-            `, [ItemName, Category, Risk, AcessLevel, Power, Data]);
-        console.log(rows[0].ID);
+            `, [ItemName, Category, Risk, AcessLevel, Power, Data])
+            .then(console.log(rows[0].ID)
+            .then(await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID], playerID)
+            .then(console.log(`LasItemID do mago de ID ${playerID} foi atualizado.`))));
         
-        return {
-            sucess: true,
-            ID: rows[0].ID
-        }
+        result.status = 200;
+        result.sucess = true;
+        result.message = `A inserção foi um sucesso, disponibilize a opção updatePower para o player, ou o poder não será atualizado.`;
+        result.others = {
+            ItemID: rows[0].ID
+        };
+        return result
 
     } catch (err) {
         console.error(err);
     };
 };
-
-//quando chamar a insertNewItem, devo colocar p fzr esse update:
-/* 
-await pool.query(`
-            UPDATE magos SET LastItemID = ($1) WHERE UserName = ($2)
-            `, [rows[0].ID, rows[0].UserName]);
-*/
 
 async function searchItem(ItemID) {
 
@@ -183,22 +189,93 @@ async function searchVaultContent(VaultID) {
     }
 };
 
-async function guardian(VaultID) {
-    const palavras = [
-        'Sapientia', //Sabedoria
-        'Plenitudo', //Plenitude
-        'Passion',   //Paixão
-        'Dextrum cornu sum et Bolsonaro suffragium fero', //Sou de direita e voto no Bolsonaro
-        'Retine lacrimas et fac L' //Segure suas lágrimas e faça L
-    ]
+async function openVault(VaultID, playerID) {
+    try {
+        const VaultContent = searchVaultContent(VaultID);
+        console.log(VaultContent);
+        async function getItens(UID) {
+            try {
+                const { rows } = await pool.query(`
+                    SELECT Itens FROM magos WHERE UID = ($1)
+                `, [UID]);
+                return rows[0].Itens
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        try {
+        const itensFromPlayer = getItens(playerID);
+        console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+        const newItensArray = [...itensFromPlayer, ...VaultContent.map(item => item.ItemID)];
+        
+        await pool.query(`
+            UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+        `, [newItensArray, playerID]).then(console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray));
+        
+        result.status = 200;
+        result.sucess = true;
+        result.message = `O cofre ${VaultID} foi aberto com sucesso pelo player de ID ${playerID}`;
+        result.others = {
+            newItensAdded: newItensArray,
+            playerId: playerID
+        }
+        return result
+        } catch (err) {
+            console.error(err);
+            result.status = 500;
+            result.sucess = false;
+            result.message = err;
+            result.others = {};
+            return result
+        };        
+    } catch (err) {
+        console.error(err);
+        result.status = 500;
+        result.sucess = false;
+        result.message = err;
+        result.others = {};
+        return result
+    };
+};
 
-    //Vou fazer mais tarde, agr vou trabalhar
-}
+async function genGuardianSecret(wordInteger) {
+    const wordsMap = {
+        1: 'Sapientia', //Sabedoria
+        2: 'Plenitudo', //Plenitude
+        3: 'Passion',   //Paixão
+        4: 'Dextrum cornu sum et Bolsonaro suffragium fero', //Sou de direita e voto no Bolsonaro
+        5: 'Retine lacrimas et fac L' //Segure suas lágrimas e faça L
+    };
+    const palavra = wordsMap[wordInteger];
+
+    const segredo = palavra.toLowerCase;
+    const segredoCriptografado = a1z26('e', segredo);
+    return segredoCriptografado
+};
+
+async function updatePower(playerID, powerToInsert) {
+    try {
+        async function getPower(UID) {
+            const { rows } = await pool.query(`
+                SELECT Power FROM magos WHERE UID = ($1)
+            `, [playerID]);
+            return rows[0].Power
+        };
+        const actualPower = getPower(playerID);
+        const newPower = Number(actualPower) + Number(powerToInsert);
+        const { rows } = await pool.query(`
+            UPDATE magos SET Power = ($1) WHERE UID = ($2)
+        `, [newPower, playerID]);
+        
+    } catch (err) {
+        console.error(err)
+    }
+};
 
 async function tome(Spell) {
     if (Spell[0].name == 'Ego coniecto') { //Significa Adivinharei
         if (Spell[0].target == 'Guardião') {
-            return // Implementarei assim que criar a mecanica de cofres e guardião
+            return // Vou implementar toda a quest do guardião e dai vou resolver esse feitiço
         } if (isNumberObject(Spell[0].target)) {
             const Target = Spell[0].Target;
             const { Player } = searchPlayer(Target);
@@ -246,6 +323,37 @@ async function a1z26(method, string) { //method deve ser e ou d (encrypt, decryp
         console.error('na função a1z26(method, string), method precisa ser "e" (encrypt), ou "d" (decrypt)');
     };
 };
+
+app.get('/api/guardian-quest', async (req, res) => {
+    const playerID = req.query.PId;
+    const vaultID = req.query.VId;
+    const secretSendByPlayer = req.query.SSBPlayer;
+
+    const wordINT = Math.floor(Math.random() * 5) + 1;
+    const GuardianSecret = await genGuardianSecret(wordINT);
+    if (secretSendByPlayer == a1z26('d', GuardianSecret)) {
+        const Player = searchPlayer(playerID);
+        await pool.query(`
+            UPDATE magos SET Posicao = ($1) WHERE UID = ($2)
+        `, [0, playerID]).then(console.log(`O mago de UID ${playerID} acaba de ascender para Sacerdote`));
+        const openVaultResult = await openVault(vaultID, playerID);
+        res.status(openVaultResult.status).json(openVaultResult)
+    } if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
+        res.status(200).json({
+            status: 200,
+            message: "Palavra incorreta, verifique e tente novamente!",
+            sucess: false
+        });
+    } else {
+        res.status(500).json({
+            status: 500,
+            message: "Erro interno, verifique a implementação que consome este endpoint.",
+            sucess: false
+        });
+    }
+
+
+});
 
 app.listen(PORT, () => {
     console.log('Servidor rodando na porta', PORT);
