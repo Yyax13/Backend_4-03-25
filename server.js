@@ -127,13 +127,8 @@ async function isInJail(playerID) {
 async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
     const result = createResult();
     const {rows: playerLevel} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
-    const PositionMap = {
-        0: 'Sacerdote',
-        1: 'Supremo',
-        2: 'Absoluto',
-        3: 'Iniciante'
-    };
-    if (playerLevel[0].Posicao == Risk || playerLevel[0].Posicao < Risk) {
+    console.log('PlayerLevel:', playerLevel[0].posicao);
+    if (playerLevel[0].Posicao <= Risk) {
         try {
             const Data = {
                 Lore: ItemLore,
@@ -193,7 +188,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             return result
         };
     } else {
-        PutInJail(playerID);
+        await PutInJail(playerID);
         result.status = 401;
         result.success = false;
         result.message = 'Jogador tem nível inferior ao Risco do item, por isso foi preso';
