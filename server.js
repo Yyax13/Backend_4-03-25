@@ -436,7 +436,7 @@ async function tome(Spell) {
             result.message = 'Sucessfully Ego coniecto';
             result.others = { secret: secret };
             return result;
-        } else if (isNumberObject(Spell.target)) {
+        } else if (Spell.target) {
             const Target = Spell.target; // Corrigido para usar `Spell.target`
             const Player = await searchPlayer(Target); // Adicionado await
             const LastItem = Player.others.LastItemID; // Corrigido para acessar corretamente
