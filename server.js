@@ -483,7 +483,12 @@ async function tome(Spell) {
     };
 };
 
-async function a1z26(method, string) { //method deve ser e ou d (encrypt, decrypt), string deve conter apenas letras ASCII (sem ç ou acentos)
+async function a1z26(method, string) { 
+    // method deve ser 'e' (encrypt) ou 'd' (decrypt), string deve conter apenas letras ASCII (sem ç ou acentos)
+    if (typeof string !== 'string') {
+        throw new TypeError('O parâmetro "string" deve ser uma string válida.');
+    }
+
     let plaintext = string.toLowerCase();
     let alphabet = "abcdefghijklmnopqrstuvwxyz";
     let separator = '.';
@@ -492,27 +497,26 @@ async function a1z26(method, string) { //method deve ser e ou d (encrypt, decryp
         let encrypted = "";
         for (let j = 0; j < plaintext.length; j++) {
             for (let i = 0; i < alphabet.length; i++) {
-                if(alphabet[i] === plaintext[j]) {
+                if (alphabet[i] === plaintext[j]) {
                     encrypted += (i + 1).toString() + separator;
                 }
             }
         }
         return encrypted.substring(0, encrypted.length - separator.length);
     } else if (method === 'd') {
-        encrypted = encrypted.toLowerCase();
-        let split = encrypted.split(separator);
+        let split = string.split(separator);
         let decrypted = "";
         for (let j = 0; j < split.length; j++) {
             for (let i = 0; i < alphabet.length; i++) {
-                if((i + 1) == split[j]) {
+                if ((i + 1) == split[j]) {
                     decrypted += alphabet[i];
                 }
             }
         }
         return decrypted;
     } else {
-        console.error('na função a1z26(method, string), method precisa ser "e" (encrypt), ou "d" (decrypt)');
-    };
+        throw new Error('O parâmetro "method" deve ser "e" (encrypt) ou "d" (decrypt).');
+    }
 };
 
 async function banPlayer(playerID) {
