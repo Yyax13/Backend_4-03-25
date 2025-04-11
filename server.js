@@ -493,7 +493,9 @@ async function a1z26(method, string) {
         return encrypted.substring(0, encrypted.length - separator.length);
     } else if (method === 'd') {
         let split = string.split(separator);
-        let decrypted = "";
+        let decrypted = "Palavra: ";
+        console.log("Decrypted:", decrypted);
+        console.log("Split:", split);
         for (let j = 0; j < split.length; j++) {
             for (let i = 0; i < alphabet.length; i++) {
                 if ((i + 1) == split[j]) {
