@@ -133,7 +133,6 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
         2: 'Absoluto',
         3: 'Iniciante'
     };
-    const playerPosition = PositionMap[playerLevel[0].posicao]
     if (playerLevel[0].posicao >= Risk) {
         try {
             const Data = {
