@@ -464,7 +464,7 @@ async function tome(Spell) {
             return result
         }
     } else if (Spell.name == 'Aperire') { //Significa Abre-te
-        const string = string(Spell.target);
+        const string = Spell.target;
         const palavra = a1z26('d', string);
         levelUp(Spell.caller);
         result.status = 200;
