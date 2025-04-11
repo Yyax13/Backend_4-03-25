@@ -695,7 +695,7 @@ app.get('/api/guardian-quest', async (req, res) => {
     console.log('Palavra decriptada:', decryptedGuardianSecret);
     console.log('Palavra enviada pelo player decriptada:', decryptedPlayerSecret);
 
-    if (decryptedPlayerSecret === decryptedGuardianSecret) {
+    if (secretSendByPlayer === decryptedGuardianSecret) {
         const Player = await searchPlayer(playerID);
         await pool.query(`
             UPDATE magos SET Posicao = ($1) WHERE UID = ($2)
