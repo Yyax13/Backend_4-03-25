@@ -154,7 +154,8 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
                 const { rows: playerItems } = await pool.query(`
                     SELECT Itens FROM magos WHERE UID = ($1)
                 `, [UID]);
-                return playerItems[0].itens;
+                // Verifica se o campo Itens é nulo ou indefinido e inicializa como um array vazio
+                return playerItems[0]?.itens || [];
             } catch (err) {
                 console.error(err);
                 return [];
@@ -164,6 +165,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
         const itensFromPlayer = await getItens(playerID);
         console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
 
+        // Garante que itensFromPlayer seja um array antes de usar o spread operator
         const newItensArray = [...itensFromPlayer, insertedRows[0].id];
 
         await pool.query(`
