@@ -687,6 +687,10 @@ app.get('/api/guardian-quest', async (req, res) => {
     const secretSendByPlayer = req.query.SSBPlayer;
 
     const GuardianSecret = await genGuardianSecret(playerID);
+    console.log('Palavra do mago:', GuardianSecret);
+    console.log('Palavra enviada pelo player:', secretSendByPlayer);
+    console.log('Palavra decriptada:', a1z26('d', GuardianSecret));
+    console.log('Palavra enviada pelo player decriptada:', a1z26('d', secretSendByPlayer));
     if (secretSendByPlayer == a1z26('d', GuardianSecret)) {
         const Player = await searchPlayer(playerID);
         await pool.query(`
