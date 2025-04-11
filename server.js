@@ -292,7 +292,7 @@ async function searchVaultContent(VaultID) {
         const { rows } = await pool.query(`
             SELECT VaultID, ItemID FROM cofres WHERE VaultID = ($1)
         `, [VaultID]);
-        return rows
+        return rows[0].itemid
     } catch (err) {
         console.error(err);
     }
