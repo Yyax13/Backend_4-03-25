@@ -398,6 +398,7 @@ async function levelUp(playerId) {
             result.status = 409; // Conflict
             result.success = null;
             result.message = 'O Player já está no nível máximo';
+            console.log('cannot level up, already at max level');
             return result
         } else if (levelBefore > 0) {
             const levelAfter = levelBefore - 1;
@@ -405,11 +406,13 @@ async function levelUp(playerId) {
             result.status = 201;
             result.success = true;
             result.message = `O jogador ${playerId} saiu do nível ${levelBefore} para o nível ${levelAfter}`;
+            console.log(`O jogador ${playerId} saiu do nível ${levelBefore} para o nível ${levelAfter}`);
             return result
         } else {
             result.status = 500;
             result.success = false;
-            result.message = 'Erro interno, levelUP'
+            result.message = 'Erro interno, levelUP';
+            console.error(result.message);
             return result
         }
     } catch (err) {
