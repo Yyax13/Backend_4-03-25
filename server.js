@@ -126,74 +126,76 @@ async function isInJail(playerID) {
 
 async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
     const result = createResult();
-    const {rows} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
+    const { rows } = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
     console.log('PlayerLevel:', rows[0].posicao);
+
     if (rows[0].posicao < Risk) {
         await PutInJail(playerID);
         result.status = 401;
         result.success = false;
         result.message = 'Jogador tem nível inferior ao Risco do item, por isso foi preso';
-        return result
+        return result;
     }
+
     try {
         const Data = {
             Lore: ItemLore,
             Description: ItemDescription
         };
+
         const { rows: insertedRows } = await pool.query(`
             INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
-        `, [ItemName, Category, Risk, AcessLevel, Power, Data])
-        .then(async () => {
-            console.log(insertedRows[0].id);
-            async function getItens(UID) {
-                try {
-                    const { rows: playerItems } = await pool.query(`
-                        SELECT Itens FROM magos WHERE UID = ($1)
-                    `, [UID]);
-                    return playerItems[0].itens;
-                } catch (err) {
-                    console.error(err);
-                }
-            }
-            try {
-                const itensFromPlayer = await getItens(playerID);
-                console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-                const newItensArray = [...itensFromPlayer, insertedRows[0].id];
-                
-                await pool.query(`
-                    UPDATE magos SET Itens = ($1) WHERE UID = ($2)
-                `, [newItensArray, playerID]);
-                console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+        `, [ItemName, Category, Risk, AcessLevel, Power, Data]);
 
-                await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [insertedRows[0].id, playerID]);
-                console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
-                
-                await updatePower(playerID, insertedRows[0].power);
+        console.log(insertedRows[0].id);
+
+        const getItens = async (UID) => {
+            try {
+                const { rows: playerItems } = await pool.query(`
+                    SELECT Itens FROM magos WHERE UID = ($1)
+                `, [UID]);
+                return playerItems[0].itens;
             } catch (err) {
                 console.error(err);
+                return [];
             }
-        });
-            
-            result.status = 201;
-            result.success = true;
-            result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
-            result.others = {
-                ItemID: insertedRows[0].id
-            };
-            return result
-
-        } catch (err) {
-            console.error(err);
-            result.status = 500;
-            result.success = false;
-            result.message = `Ocorreu um erro na func insertNewItem`;
-            result.others = {
-                error: err
-            };
-            console.error(result.message + err)
-            return result
         };
-};
+
+        const itensFromPlayer = await getItens(playerID);
+        console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+
+        const newItensArray = [...itensFromPlayer, insertedRows[0].id];
+
+        await pool.query(`
+            UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+        `, [newItensArray, playerID]);
+
+        console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+
+        await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [insertedRows[0].id, playerID]);
+        console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
+
+        await updatePower(playerID, insertedRows[0].power);
+
+        result.status = 201;
+        result.success = true;
+        result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
+        result.others = {
+            ItemID: insertedRows[0].id
+        };
+        return result;
+
+    } catch (err) {
+        console.error(err);
+        result.status = 500;
+        result.success = false;
+        result.message = `Ocorreu um erro na func insertNewItem`;
+        result.others = {
+            error: err
+        };
+        return result;
+    }
+}
 
 async function searchItem(ItemID) {
     const result = createResult();
