@@ -133,7 +133,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
         2: 'Absoluto',
         3: 'Iniciante'
     };
-    if (playerLevel[0].Posicao <= Risk) {
+    if (playerLevel[0].Posicao == Risk || playerLevel[0].Posicao < Risk) {
         try {
             const Data = {
                 Lore: ItemLore,
