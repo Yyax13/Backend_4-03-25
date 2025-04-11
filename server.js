@@ -321,8 +321,7 @@ async function openVault(VaultID, playerID) {
 
             const newItensArray = [
                 ...itensFromPlayer.filter(item => item !== null), 
-                ...VaultContent.map(item => item.ItemID)
-            ]; // Combina arrays
+                ...VaultContent];//.map(item => item.ItemID)];
 
             await pool.query(`
                 UPDATE magos SET Itens = ($1) WHERE UID = ($2)
