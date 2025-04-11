@@ -705,6 +705,7 @@ app.get('/api/guardian-quest', async (req, res) => {
 });
 
 app.get('/api/find-vaults', async (req, res) => {
+    const result = createResult();
     const sessionId = req.headers.cookie?.split('=')[1];
     const userSession = sessions[sessionId];
     if (!userSession) {
