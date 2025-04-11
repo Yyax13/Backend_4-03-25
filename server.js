@@ -128,45 +128,51 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
     const result = createResult();
     const {rows} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
     console.log('PlayerLevel:', rows[0].posicao);
-    if (Number(rows[0].Posicao) < Risk) {
-        try {
-            const Data = {
-                Lore: ItemLore,
-                Description: ItemDescription
-            };
-            const { rows } = await pool.query(`
-                INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
-                `, [ItemName, Category, Risk, AcessLevel, Power, Data])
-                .then(async () => {
-                    console.log(rows[0].id);
-                    async function getItens(UID) {
-                        try {
-                            const { rows } = await pool.query(`
-                                SELECT Itens FROM magos WHERE UID = ($1)
-                            `, [UID]);
-                            return rows[0].itens;
-                        } catch (err) {
-                            console.error(err);
-                        }
-                    }
-                    try {
-                        const itensFromPlayer = await getItens(playerID);
-                        console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-                        const newItensArray = [...itensFromPlayer, rows[0].id];
-                        
-                        await pool.query(`
-                            UPDATE magos SET Itens = ($1) WHERE UID = ($2)
-                        `, [newItensArray, playerID]);
-                        console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+    if (rows[0].posicao < Risk) {
+        await PutInJail(playerID);
+        result.status = 401;
+        result.success = false;
+        result.message = 'Jogador tem nível inferior ao Risco do item, por isso foi preso';
+        return result
+    }
+    try {
+        const Data = {
+            Lore: ItemLore,
+            Description: ItemDescription
+        };
+        const { rows } = await pool.query(`
+            INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
+        `, [ItemName, Category, Risk, AcessLevel, Power, Data])
+        .then(async () => {
+            console.log(rows[0].id);
+            async function getItens(UID) {
+            try {
+                const { rows } = await pool.query(`
+                    SELECT Itens FROM magos WHERE UID = ($1)
+                `, [UID]);
+                return rows[0].itens;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+            try {
+                const itensFromPlayer = await getItens(playerID);
+                console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+                const newItensArray = [...itensFromPlayer, rows[0].id];
+                
+                await pool.query(`
+                    UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+                `, [newItensArray, playerID]);
+                console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
 
-                        await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].id, playerID]);
-                        console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
-                        
-                        await updatePower(playerID, rows[0].power);
-                    } catch (err) {
-                        console.error(err);
-                    }
-                });
+                await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].id, playerID]);
+                console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
+                
+                await updatePower(playerID, rows[0].power);
+            } catch (err) {
+                console.error(err);
+            }
+        });
             
             result.status = 201;
             result.success = true;
@@ -187,13 +193,6 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             console.error(result.message + err)
             return result
         };
-    } else {
-        await PutInJail(playerID);
-        result.status = 401;
-        result.success = false;
-        result.message = 'Jogador tem nível inferior ao Risco do item, por isso foi preso';
-        return result
-    }
 };
 
 async function searchItem(ItemID) {
