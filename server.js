@@ -367,7 +367,7 @@ async function genGuardianSecret(playerID) {
     `, [playerID])
     const palavra = wordsMap[rows[0].randomint];
 
-    const segredo = palavra.toLowerCase;
+    const segredo = palavra;
     const segredoCriptografado = a1z26('e', segredo);
     return segredoCriptografado
 };
