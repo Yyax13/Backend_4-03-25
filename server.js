@@ -719,12 +719,11 @@ app.get('/api/find-vaults', async (req, res) => {
     const howMany = Number(req.query.n);
     const vaults = await findVaults();
     let vaultsForReturn = [];
-    for (let i = 0; i < howMany - 1; i++) {
-        if (vaultsForReturn.length == howMany) {
-            break
-        } else {
-            vaultsForReturn = [...vaults[i]];
+    for (let i = 0; i < howMany; i++) { // Corrigido para iterar corretamente
+        if (i >= vaults.length) {
+            break; // Evita acessar índices fora do array
         }
+        vaultsForReturn.push(vaults[i]); // Adiciona o elemento diretamente ao array
     }
     result.status = 200;
     result.success = true;
