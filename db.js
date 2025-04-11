@@ -45,6 +45,7 @@ async function setupTables() {
             Itens INT[],
             Posicao INT,
             Jail BOOLEAN,
+            WasInJail BOOLEAN,
             LastItemID INT DEFAULT 0,
             RandomInt INT
             )
@@ -59,13 +60,7 @@ async function setupTables() {
                 0: Deus,
                 1: Serafins,
                 2: Querubins,
-                3: Tronos,
-                4: Dominações,
-                5: Virtudes,
-                6: Potestades,
-                7: Principados,
-                8: Arcanjos,
-                9: Anjos
+                3: Tronos
             */
 
         await pool.query(`

@@ -1,13 +1,15 @@
 require('dotenv').config();
 const axios = require('axios');
 const express = require('express');
-const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
-const sanitizeHtml = require('sanitize-html'); 
+const sanitizeHtml = require('sanitize-html');
+const uuidv4 = require('uuid').v4;
 const pool = require('./db');
+const chance = require('chance').Chance();
 const bcrypt = require('bcrypt');
 const { isNumberObject } = require('util/types');
+const { error } = require('console');
 const saltRouds = Number(process.env.HASH_SALT);
 
 const app = express();
@@ -16,13 +18,16 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3001;
+const sessions = {};
 
-let result = {
-    status: null,
-    sucess: null,
-    message: null,
-    others: null
-};
+function createResult() {
+    return {
+        status: null,
+        success: null,
+        message: null,
+        others: {}
+    };
+}
 
 async function hashPass(passwd) {
     try {
@@ -45,6 +50,7 @@ async function verifyPass(passwd, hash) {
 };
 
 async function signUp(UserName, UserPass) {
+    const result = createResult();
     try {
         const HashPass = await hashPass(UserPass);
         const randomNumber = Math.floor(Math.random() * 5) + 1;
@@ -53,94 +59,148 @@ async function signUp(UserName, UserPass) {
             `, [UserName, HashPass, 3, false, randomNumber]);
         console.log('Mago cadastrado, UID:', rows[0].UID);
         result.status = 201;
-        result.sucess = true;
+        result.success = true;
         result.message = `Mago cadastrado, UID: ${rows[0].UID}`;
         return result
     } catch (err) {
         console.error(err);
         result.status = 500;
-        result.sucess = false;
+        result.success = false;
         result.message = `Ocorreu um erro na func signUp (verifique .others)`;
         result.others = {
             error: err
         };
+        console.error(result.message + err)
         return result
     };
 };
 
 async function signIn(UserName, UserPass) {
+    const result = createResult();
     try {
         const { rows } = await pool.query(`
             SELECT UserPass FROM magos WHERE UserName = ($1)
             `, [UserName])
         const match = await verifyPass(rows[0].UserPass, await hashPass(UserPass));
-        return match
+        if (match) {
+            result.status = 200;
+            result.success = true;
+            result.message = "User sucessfuly loged in";
+            return result
+        } else if (!match) {
+            result.status = 401;
+            result.success = false;
+            result.message = "Verify credentials";
+            return result
+        } else {
+            result.status = 500;
+            result.success = false;
+            result.message = "Internal error, try again later";
+            return result
+        }
     } catch (err) {
-        console.error(err);
+        result.status = 500;
+        result.success = false;
+        result.message = "Internal error, try again later";
+        console.error(result.message + err);
+        return result
     };
+};
+
+async function PutInJail(playerID) {
+    const { rows } = await pool.query(`UPDATE magos SET Jail = ($1) WHERE UID = ($2) RETURNING UID, Jail`, [true, playerID]);
+    console.log(`O player de UID ${rows[0].UID} está na prisão`)
+    console.log(`${rows[0].UID} Jail status: ${rows[0].Jail}`)
+    return `O player de UID ${rows[0].UID} está na prisão`
+}
+
+async function isInJail(playerID) {
+    const {rows} = pool.query(`
+        SELECT Jail FROM magos WHERE UID = ($1) RETURNING UID, Jail
+    `, [playerID]);
+    return rows[0].Jail
 };
 
 async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
-    try {
-        const Data = {
-            Lore: ItemLore,
-            Description: ItemDescription
-        };
-        const { rows } = await pool.query(`
-            INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
-            `, [ItemName, Category, Risk, AcessLevel, Power, Data])
-            .then(async () => {
-                console.log(rows[0].ID);
-                async function getItens(UID) {
+    const result = createResult();
+    const {rows: playerLevel} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
+    const PositionMap = {
+        0: 'Sacerdote',
+        1: 'Supremo',
+        2: 'Absoluto',
+        3: 'Iniciante'
+    };
+    const playerPosition = PositionMap[playerLevel[0].Posicao]
+    if (playerLevel[0].Posicao >= Risk) {
+        try {
+            const Data = {
+                Lore: ItemLore,
+                Description: ItemDescription
+            };
+            const { rows } = await pool.query(`
+                INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
+                `, [ItemName, Category, Risk, AcessLevel, Power, Data])
+                .then(async () => {
+                    console.log(rows[0].ID);
+                    async function getItens(UID) {
+                        try {
+                            const { rows } = await pool.query(`
+                                SELECT Itens FROM magos WHERE UID = ($1)
+                            `, [UID]);
+                            return rows[0].Itens;
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    }
                     try {
-                        const { rows } = await pool.query(`
-                            SELECT Itens FROM magos WHERE UID = ($1)
-                        `, [UID]);
-                        return rows[0].Itens;
+                        const itensFromPlayer = await getItens(playerID);
+                        console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+                        const newItensArray = [...itensFromPlayer, rows[0].ID];
+                        
+                        await pool.query(`
+                            UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+                        `, [newItensArray, playerID]);
+                        console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+
+                        await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID, playerID]);
+                        console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
+                        
+                        await updatePower(playerID, rows[0].Power);
                     } catch (err) {
                         console.error(err);
                     }
-                }
-                try {
-                    const itensFromPlayer = await getItens(playerID);
-                    console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-                    const newItensArray = [...itensFromPlayer, rows[0].ID];
-                    
-                    await pool.query(`
-                        UPDATE magos SET Itens = ($1) WHERE UID = ($2)
-                    `, [newItensArray, playerID]);
-                    console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+                });
+            
+            result.status = 201;
+            result.success = true;
+            result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
+            result.others = {
+                ItemID: rows[0].ID
+            };
+            return result
 
-                    await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID, playerID]);
-                    console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
-                    
-                    await updatePower(playerID, rows[0].Power);
-                } catch (err) {
-                    console.error(err);
-                }
-            });
-        
-        result.status = 200;
-        result.sucess = true;
-        result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
-        result.others = {
-            ItemID: rows[0].ID
+        } catch (err) {
+            console.error(err);
+            result.status = 500;
+            result.success = false;
+            result.message = `Ocorreu um erro na func insertNewItem`;
+            result.others = {
+                error: err
+            };
+            console.error(result.message + err)
+            return result
         };
+    } else {
+        PutInJail(playerID);
+        result.status = 401;
+        result.success = false;
+        result.message = 'Jogador tem nível inferior ao Risco do item, por isso foi preso';
         return result
-
-    } catch (err) {
-        console.error(err);
-        result.status = 500;
-        result.sucess = false;
-        result.message = `Ocorreu um erro na func insertNewItem`;
-        result.others = {
-            error: err
-        };
-        return result
-    };
+    }
 };
 
 async function searchItem(ItemID) {
+    const result = createResult();
 
     const { rows } = await pool.query(`
         SELECT ID, ItemName, Category, Risk, AcessLevel, Power, Data FROM itens WHERE ID = ($1)
@@ -158,13 +218,7 @@ async function searchItem(ItemID) {
         0: 'Deus',
         1: 'Serafins',
         2: 'Querubins',
-        3: 'Tronos',
-        4: 'Dominações',
-        5: 'Virtudes',
-        6: 'Potestades',
-        7: 'Principados',
-        8: 'Arcanjos',
-        9: 'Anjos'
+        3: 'Tronos'
     };
     const Risco = RiskMap[rows[0].Risk];
 
@@ -177,11 +231,16 @@ async function searchItem(ItemID) {
         Power: rows[0].Power,
         Data: rows[0].Data //JSON
     };
+    result.status = 200;
+    result.success = true;
+    result.message = 'Sucessfuly searched item';
+    result.others = Item;
     console.log(Item);
-    return Item
+    return result
 };
 
 async function searchPlayer(UserName) {
+    const result = createResult();
     const { rows } = await pool.query(`
         SELECT UID, UserName, Power, Itens, Posicao, Jail, LastItemID, RandomInt FROM magos WHERE UserName = ($1)
     `, [UserName]);
@@ -199,6 +258,10 @@ async function searchPlayer(UserName) {
     }
     const Posicao = PositionMap[rows[0].Posicao];
     const Jail = JailMap[rows[0].Jail];
+    result.status = 200;
+    result.success = true;
+    result.message = "Search sucess";
+    result.others = Player;
     const Player = {
         UID: rows[0].UID,
         UserName: rows[0].UserName,
@@ -210,7 +273,7 @@ async function searchPlayer(UserName) {
         RandomInt: rows[0].RandomInt
     };
     console.log(Player);
-    return Player
+    return result
 };
 
 async function findVaults() {
@@ -236,6 +299,7 @@ async function searchVaultContent(VaultID) {
 };
 
 async function openVault(VaultID, playerID) {
+    const result = createResult();
     try {
         const VaultContent = searchVaultContent(VaultID);
         console.log(VaultContent);
@@ -259,7 +323,7 @@ async function openVault(VaultID, playerID) {
         `, [newItensArray, playerID]).then(console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray));
         
         result.status = 200;
-        result.sucess = true;
+        result.success = true;
         result.message = `O cofre ${VaultID} foi aberto com sucesso pelo player de ID ${playerID}`;
         result.others = {
             newItensAdded: newItensArray,
@@ -269,17 +333,23 @@ async function openVault(VaultID, playerID) {
         } catch (err) {
             console.error(err);
             result.status = 500;
-            result.sucess = false;
-            result.message = err;
-            result.others = {};
+            result.success = false;
+            result.message = 'Error during openVault';
+            result.others = {
+                error: err
+            };
+            console.log(result.message + err);
             return result
         };        
     } catch (err) {
         console.error(err);
         result.status = 500;
-        result.sucess = false;
-        result.message = err;
-        result.others = {};
+        result.success = false;
+        result.message = 'Error during openVault';
+        result.others = {
+            error: err
+        };
+        console.log(result.message + err);
         return result
     };
 };
@@ -320,7 +390,42 @@ async function updatePower(playerID, powerToInsert) {
     }
 };
 
+async function levelUp(playerId) {
+    const result = createResult();
+    try {
+        const {rows: levelBefore} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerId]);
+        if (levelBefore == 0) {
+            result.status = 409; // Conflict
+            result.success = null;
+            result.message = 'O Player já está no nível máximo';
+            return result
+        } else if (levelBefore > 0) {
+            const levelAfter = levelBefore - 1;
+            await pool.query(`UPDATE magos SET Posicao = ($1) WHERE UID = ($2)`, [levelAfter, playerId]);
+            result.status = 201;
+            result.success = true;
+            result.message = `O jogador ${playerId} saiu do nível ${levelBefore} para o nível ${levelAfter}`;
+            return result
+        } else {
+            result.status = 500;
+            result.success = false;
+            result.message = 'Erro interno, levelUP'
+            return result
+        }
+    } catch (err) {
+        result.status = 500;
+        result.success = false;
+        result.message = 'Erro interno, levelUP'
+        result.others = {
+            error: err
+        };
+        console.error(result.message + err);
+        return result
+    }
+};
+
 async function tome(Spell) {
+    const result = createResult();
     /* Spell = {
         name = 'NOME DO FEITIÇO',
         target = UID de um player ou 'Guardian',
@@ -330,21 +435,52 @@ async function tome(Spell) {
         if (Spell.target == 'Guardian') {
             const player = Spell.caller;
             const secret = genGuardianSecret(player);
-            return secret
-        } else if (isNumberObject(Spell.target)) {
+            levelUp(Spell.caller);
+            result.status = 200;
+            result.success = true;
+            result.message = 'Sucessfully Ego coniecto';
+            result.others = {
+                secret: secret
+            };
+            return result
+        } else else if (isNumberObject(Spell.target)) {
             const Target = Spell.Target;
             const { Player } = searchPlayer(Target);
             const LastItem = Player[0].LastItemID;
-            console.log(`Ultimo item do mago ${Player[0].UserName}` + LastItem);
-            return LastItem
+            levelUp(Spell.caller);
+            console.log(`Ultimo item do mago ${Player[0].UserName} é: ` + LastItem);
+            result.status = 200;
+            result.success = true;
+            result.message = (`Ultimo item do mago ${Player[0].UserName} é: ` + LastItem);
+            result.others = {
+                LastItem: LastItem
+            };
+            return result
         } else {
-            console.error('Spell.name deve ser "Guardian" ou int (UID do player-alvo)');
+            result.status = 400;
+            result.success = false;
+            result.message = 'Spell.target deve ser "Guardian" ou int (UID do player-alvo)';
+            console.error('Spell.target deve ser "Guardian" ou int (UID do player-alvo)');
+            return result
         }
     } else if (Spell.name == 'Aperire') { //Significa Abre-te
         const string = string(Spell.target);
         const palavra = a1z26('d', string);
+        levelUp(Spell.caller);
+        result.status = 200;
+        result.success = true;
+        result.message = 'Palavra decriptada com sucesso';
+        result.others = {
+            word: palavra
+        }
         return palavra
-    }; 
+    } else {
+        result.status = 0;
+        result.success = false;
+        result.message = 'O Spell.name deve ser válido (Aperire ou Ego coniecto)';
+        console.log(result.message);
+        return result
+    };
 };
 
 async function a1z26(method, string) { //method deve ser e ou d (encrypt, decrypt), string deve conter apenas letras ASCII (sem ç ou acentos)
@@ -379,19 +515,173 @@ async function a1z26(method, string) { //method deve ser e ou d (encrypt, decryp
     };
 };
 
+async function banPlayer(playerID) {
+    const result = createResult();
+    try {
+        const { rows: playerItems } = await pool.query(`
+            SELECT Itens FROM magos WHERE UID = ($1)
+        `, [playerID]);
+
+        if (playerItems.length > 0 && playerItems[0].Itens.length > 0) {
+            const items = playerItems[0].Itens;
+
+            const { rows: vault } = await pool.query(`
+                INSERT INTO cofres (ItemID) VALUES ($1) RETURNING VaultID
+            `, [items]);
+
+            console.log(`Itens do jogador ${playerID} foram colocados no cofre ${vault[0].VaultID}`);
+        } else {
+            console.log(`Jogador ${playerID} não possui itens para colocar em um cofre.`);
+        }
+
+        const { rows } = await pool.query(`
+            DELETE FROM magos WHERE UID = ($1) RETURNING UserName
+        `, [playerID]);
+
+        if (rows.length > 0) {
+            result.status = 200;
+            result.success = true;
+            result.message = `O jogador ${rows[0].UserName} foi banido com sucesso.`;
+        } else {
+            result.status = 404;
+            result.success = false;
+            result.message = `Jogador com UID ${playerID} não encontrado.`;
+        }
+        return result;
+    } catch (err) {
+        console.error(err);
+        result.status = 500;
+        result.success = false;
+        result.message = 'Erro interno ao tentar banir o jogador.';
+        result.others = { error: err };
+        return result;
+    }
+};
+
+async function stealItem(itemID, callerID, targetPlayerID) {
+    const result = createResult();
+    const stealSucess = chance.bool({likelihood: 60});
+    if (!stealSucess) {
+        banPlayer(callerID);
+        result.status = 403;
+        result.success = stealSucess;
+        result.message = 'O roubo falhou, você foi banido';
+        return result
+    }
+    const {rows: targetItemArray} = await pool.query(`
+        SELECT Itens FROM magos WHERE UID = ($1)
+    `, [targetPlayerID]);
+    const targetItemArray_stealed = targetItemArray.filter(item => item !== itemID);
+    await pool.query(`
+        UPDATE magos SET itens = ($1) WHERE UID = ($2)
+    `, [targetItemArray_stealed, targetPlayerID]);
+    const {rows: callerItemArray} = await pool.query(`
+        SELECT itens FROM magos WHERE UID = ($1)
+    `, [callerID]);
+    const callerItemArray_increasedBySteal = [...callerItemArray, itemID];
+    await pool.query(`
+        UPDATE magos SET itens = ($1) WHERE UID = ($2)
+    `, [callerItemArray_increasedBySteal, callerID]);
+
+    result.status = 0;
+    result.success = stealSucess;
+    result.message = 'O item foi furtado com sucesso';
+    return result
+};
+
 app.post('/api/sign-up', async (req, res) => {
     const userNameToInsert = req.body.username;
     const userPassToInsert = req.body.userpass;
 
-    const signInCall = await signIn(userNameToInsert, userPassToInsert);
-    res.status(signInCall.status).json(signInCall);
+    const signUpCall = await signUp(userNameToInsert, userPassToInsert);
+    res.status(signUpCall.status).json(signUpCall);
+});
+
+app.post('/api/sign-in', async (req, res) => {
+    const result = createResult();
+    const {uName, uPass} = req.body;
+
+    const playerInfo = await searchPlayer(uName);
+    const Jail = isInJail(playerInfo.others.UID);
+    if (!Jail) {
+        const signInCall = await signIn(uName, uPass);
+        const sessionId = uuidv4();
+        sessions[sessionId] = { userId: playerInfo.others.UID, userName: uName };
+        res.set('Set-Cookie', `session=${sessionId}`);
+        res.status(signInCall.status).json(signInCall);
+    } else if (Jail) {
+        result.status = 401;
+        result.success = false;
+        result.message = "User is in Jail";
+        res.status(result.status).json(result);
+    }
 });
 
 app.get('/api/search-player', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+    const userName = req.query.uname;
+    const callerLevel = req.query.cl;
+
+    if (callerLevel >= 1) {
+        const searchPlayerCall = await searchPlayer(userName);
+        res.status(searchPlayerCall.status).json(searchPlayerCall.others);
+    } else if (callerLevel < 1) {
+        res.status(401).json({message: 'User havent level for that'});
+    }
+});
+
+app.post('/api/insert-item', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+    const {playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription} = req.body;
+
+    const insertItemCall = await insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription)
+    res.status(insertItemCall.status).json(insertItemCall);
+});
+
+app.get('/api/search-item', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+    const itemID = req.query.iid;
+
+    const searchItemCall = await searchItem(itemID);
+    res.status(searchItemCall.status).json(searchItemCall.others);
+});
+
+app.post('/api/tomo', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+    const {spellName, spellTarget, spellCaller} = req.body;
+
+    const Spell = {
+        name: spellName,
+        target: spellTarget,
+        caller: spellCaller
+    };
+    const callTome = await tome(Spell);
 
 });
 
 app.get('/api/guardian-quest', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+    const result = createResult();
     const playerID = req.query.PId;
     const vaultID = req.query.VId;
     const secretSendByPlayer = req.query.SSBPlayer;
@@ -406,12 +696,12 @@ app.get('/api/guardian-quest', async (req, res) => {
         res.status(openVaultResult.status).json(openVaultResult)
     } else if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
         result.status = 401;
-        result.sucess = false;
+        result.success = false;
         result.message = 'Palavra incorreta, verifique e tente novamente!';
         res.status(result.status).json(result);
     } else {
         result.status = 500;
-        result.sucess = false;
+        result.success = false;
         result.message = "Erro interno, verifique a implementação que consome este endpoint.";
         res.status(result.status).json(result);
     }
@@ -420,6 +710,11 @@ app.get('/api/guardian-quest', async (req, res) => {
 });
 
 app.get('/api/find-vaults', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
     const howMany = Number(req.query.n);
     const vaults = await findVaults();
     let vaultsForReturn = [];
@@ -431,11 +726,23 @@ app.get('/api/find-vaults', async (req, res) => {
         }
     }
     result.status = 200;
-    result.sucess = true;
+    result.success = true;
     result.message = "A seguir, os VIDs requisitados";
     result.others = vaultsForReturn;
     res.status(result.status).json(result);
-})
+});
+
+app.post('/api/steal-item', async (req, res) => {
+    const sessionId = req.headers.cookie?.split('=')[1];
+    const userSession = sessions[sessionId];
+    if (!userSession) {
+        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+    }
+
+    const {targetID, callerID, itemID} =  req.body;
+    const stealItemCall = await stealItem(itemID, callerID, targetID);
+    res.status(stealItemCall.status).json(stealItemCall);
+});
 
 app.listen(PORT, () => {
     console.log('Servidor rodando na porta ' + PORT);
