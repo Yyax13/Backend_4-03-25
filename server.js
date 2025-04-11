@@ -426,62 +426,48 @@ async function levelUp(playerId) {
 
 async function tome(Spell) {
     const result = createResult();
-    /* Spell = {
-        name = 'NOME DO FEITIÇO',
-        target = UID de um player ou 'Guardian',
-        caller = UID do player que chamou
-    }*/
-    if (Spell.name == 'Ego coniecto') { //Significa Adivinharei
+    if (Spell.name == 'Ego coniecto') {
         if (Spell.target == 'Guardian') {
             const player = Spell.caller;
-            const secret = genGuardianSecret(player);
-            levelUp(Spell.caller);
+            const secret = await genGuardianSecret(player); // Adicionado await
+            await levelUp(Spell.caller); // Adicionado await
             result.status = 200;
             result.success = true;
             result.message = 'Sucessfully Ego coniecto';
-            result.others = {
-                secret: secret
-            };
-            return result
+            result.others = { secret: secret };
+            return result;
         } else if (isNumberObject(Spell.target)) {
-            const Target = Spell.Target;
-            const { Player } = searchPlayer(Target);
-            const LastItem = Player[0].lastitemid;
-            levelUp(Spell.caller);
-            console.log(`Ultimo item do mago ${Player[0].username} é: ` + LastItem);
+            const Target = Spell.target; // Corrigido para usar `Spell.target`
+            const Player = await searchPlayer(Target); // Adicionado await
+            const LastItem = Player.others.LastItemID; // Corrigido para acessar corretamente
+            await levelUp(Spell.caller); // Adicionado await
             result.status = 200;
             result.success = true;
-            result.message = (`Ultimo item do mago ${Player[0].username} é: ` + LastItem);
-            result.others = {
-                LastItem: LastItem
-            };
-            return result
+            result.message = `Ultimo item do mago ${Player.others.UserName} é: ${LastItem}`;
+            result.others = { LastItem: LastItem };
+            return result;
         } else {
             result.status = 400;
             result.success = false;
             result.message = 'Spell.target deve ser "Guardian" ou int (UID do player-alvo)';
-            console.error('Spell.target deve ser "Guardian" ou int (UID do player-alvo)');
-            return result
+            return result;
         }
-    } else if (Spell.name == 'Aperire') { //Significa Abre-te
+    } else if (Spell.name == 'Aperire') {
         const string = Spell.target;
-        const palavra = a1z26('d', string);
-        levelUp(Spell.caller);
+        const palavra = await a1z26('d', string); // Adicionado await
+        await levelUp(Spell.caller); // Adicionado await
         result.status = 200;
         result.success = true;
         result.message = 'Palavra decriptada com sucesso';
-        result.others = {
-            word: palavra
-        }
-        return palavra
+        result.others = { word: palavra };
+        return result;
     } else {
-        result.status = 0;
+        result.status = 400; // Corrigido para retornar um status válido
         result.success = false;
         result.message = 'O Spell.name deve ser válido (Aperire ou Ego coniecto)';
-        console.log(result.message);
-        return result
-    };
-};
+        return result;
+    }
+}
 
 async function a1z26(method, string) { 
     // method deve ser 'e' (encrypt) ou 'd' (decrypt), string deve conter apenas letras ASCII (sem ç ou acentos)
