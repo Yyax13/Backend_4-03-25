@@ -679,7 +679,7 @@ app.get('/api/guardian-quest', async (req, res) => {
     const sessionId = req.headers.cookie?.split('=')[1];
     const userSession = sessions[sessionId];
     if (!userSession) {
-        res.status(401).json({message: 'User do not have authorization to use this, check if he signed In'});
+        res.status(401).json({ message: 'User do not have authorization to use this, check if he signed In' });
     }
     const result = createResult();
     const playerID = req.query.PId;
@@ -687,30 +687,28 @@ app.get('/api/guardian-quest', async (req, res) => {
     const secretSendByPlayer = req.query.SSBPlayer;
 
     const GuardianSecret = await genGuardianSecret(playerID);
+    const decryptedGuardianSecret = a1z26('d', GuardianSecret); // Decripta a palavra do guardião
+    const decryptedPlayerSecret = a1z26('d', secretSendByPlayer); // Decripta a palavra enviada pelo player
+
     console.log('Palavra do mago:', GuardianSecret);
     console.log('Palavra enviada pelo player:', secretSendByPlayer);
-    console.log('Palavra decriptada:', a1z26('d', GuardianSecret));
-    console.log('Palavra enviada pelo player decriptada:', a1z26('d', secretSendByPlayer));
-    if (secretSendByPlayer == a1z26('d', GuardianSecret)) {
+    console.log('Palavra decriptada:', decryptedGuardianSecret);
+    console.log('Palavra enviada pelo player decriptada:', decryptedPlayerSecret);
+
+    if (decryptedPlayerSecret === decryptedGuardianSecret) {
         const Player = await searchPlayer(playerID);
         await pool.query(`
             UPDATE magos SET Posicao = ($1) WHERE UID = ($2)
-        `, [0, Player[0].UID]).then(console.log(`O mago de UID ${Player[0].UID} acaba de ascender para Sacerdote`));
-        const openVaultResult = await openVault(vaultID, Player[0].UID);
-        res.status(openVaultResult.status).json(openVaultResult)
-    } else if (!(secretSendByPlayer == a1z26('d', GuardianSecret))) {
+        `, [0, Player.others.UID]);
+        console.log(`O mago de UID ${Player.others.UID} acaba de ascender para Sacerdote`);
+        const openVaultResult = await openVault(vaultID, Player.others.UID);
+        res.status(openVaultResult.status).json(openVaultResult);
+    } else {
         result.status = 401;
         result.success = false;
         result.message = 'Palavra incorreta, verifique e tente novamente!';
         res.status(result.status).json(result);
-    } else {
-        result.status = 500;
-        result.success = false;
-        result.message = "Erro interno, verifique a implementação que consome este endpoint.";
-        res.status(result.status).json(result);
     }
-
-
 });
 
 app.get('/api/find-vaults', async (req, res) => {
