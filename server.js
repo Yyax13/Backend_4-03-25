@@ -632,7 +632,7 @@ app.get('/api/search-player', async (req, res) => {
     if (callerLevel == 0 || 1) {
         const searchPlayerCall = await searchPlayer(userName);
         res.status(searchPlayerCall.status).json(searchPlayerCall.others);
-    } else {
+    } else if (!(callerLevel == 0 || 1)) {
         res.status(401).json({message: 'User havent level for that'});
     }
 });
