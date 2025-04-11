@@ -682,7 +682,7 @@ app.get('/api/guardian-quest', async (req, res) => {
         res.status(401).json({ message: 'User do not have authorization to use this, check if he signed In' });
     }
     const result = createResult();
-    const playerID = req.query.PId;
+    const playerID = req.query.PName;
     const vaultID = req.query.VId;
     const secretSendByPlayer = req.query.SSBPlayer;
 
@@ -696,7 +696,7 @@ app.get('/api/guardian-quest', async (req, res) => {
     console.log('Palavra enviada pelo player decriptada:', decryptedPlayerSecret);
 
     if (secretSendByPlayer === decryptedGuardianSecret) {
-        const Player = await searchPlayer(playerID);
+        const Player = await searchPlayer(pName);
         await pool.query(`
             UPDATE magos SET Posicao = ($1) WHERE UID = ($2)
         `, [0, Player.others.UID]);
