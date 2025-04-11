@@ -393,13 +393,15 @@ async function updatePower(playerID, powerToInsert) {
 async function levelUp(playerId) {
     const result = createResult();
     try {
-        const {rows: levelBefore} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerId]);
-        if (levelBefore == 0) {
+        const { rows: levelBeforeRows } = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerId]);
+        const levelBefore = levelBeforeRows[0]?.posicao; // Acessa o valor de Posicao
+
+        if (levelBefore === 0) {
             result.status = 409; // Conflict
             result.success = null;
             result.message = 'O Player já está no nível máximo';
             console.log('cannot level up, already at max level');
-            return result
+            return result;
         } else if (levelBefore > 0) {
             const levelAfter = levelBefore - 1;
             await pool.query(`UPDATE magos SET Posicao = ($1) WHERE UID = ($2)`, [levelAfter, playerId]);
@@ -407,25 +409,25 @@ async function levelUp(playerId) {
             result.success = true;
             result.message = `O jogador ${playerId} saiu do nível ${levelBefore} para o nível ${levelAfter}`;
             console.log(`O jogador ${playerId} saiu do nível ${levelBefore} para o nível ${levelAfter}`);
-            return result
+            return result;
         } else {
             result.status = 500;
             result.success = false;
             result.message = 'Erro interno, levelUP';
             console.error(result.message);
-            return result
+            return result;
         }
     } catch (err) {
         result.status = 500;
         result.success = false;
-        result.message = 'Erro interno, levelUP'
+        result.message = 'Erro interno, levelUP';
         result.others = {
             error: err
         };
         console.error(result.message + err);
-        return result
+        return result;
     }
-};
+}
 
 async function tome(Spell) {
     const result = createResult();
