@@ -666,7 +666,7 @@ app.post('/api/tomo', async (req, res) => {
         caller: spellCaller
     };
     const callTome = await tome(Spell);
-    res.status(callTome.status).json(callTome.others);
+    res.status(callTome.status).json(callTome);
 });
 
 app.get('/api/guardian-quest', async (req, res) => {
