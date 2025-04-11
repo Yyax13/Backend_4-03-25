@@ -356,11 +356,11 @@ async function openVault(VaultID, playerID) {
 
 async function genGuardianSecret(playerID) {
     const wordsMap = {
-        1: 'Sapientia', //Sabedoria
-        2: 'Plenitudo', //Plenitude
-        3: 'Passion',   //Paixão
-        4: 'Dextrum cornu sum et Bolsonaro suffragium fero', //Sou de direita e voto no Bolsonaro
-        5: 'Retine lacrimas et fac L' //Segure suas lágrimas e faça L
+        1: 'sapientia', //Sabedoria
+        2: 'plenitudo', //Plenitude
+        3: 'passion',   //Paixão
+        4: 'dextrumcornusumetbolsonarosuffragiumfero', //Sou de direita e voto no Bolsonaro
+        5: 'retinelacrimasetfacL' //Segure suas lágrimas e faça L
     };
     const { rows } = await pool.query(`
         SELECT RandomInt FROM magos WHERE UID = ($1)
