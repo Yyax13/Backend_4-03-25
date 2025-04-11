@@ -477,7 +477,7 @@ async function tome(Spell) {
     }
 }
 
-async function a1z26(method, string) { 
+function a1z26(method, string) { 
     // method deve ser 'e' (encrypt) ou 'd' (decrypt), string deve conter apenas letras ASCII (sem ç ou acentos)
     if (typeof string !== 'string') {
         throw new TypeError('O parâmetro "string" deve ser uma string válida.');
