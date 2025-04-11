@@ -683,6 +683,7 @@ app.get('/api/guardian-quest', async (req, res) => {
     }
     const result = createResult();
     const pName = req.query.PName;
+    const playerID = req.query.PId;
     const vaultID = req.query.VId;
     const secretSendByPlayer = req.query.SSBPlayer;
 
