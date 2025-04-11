@@ -318,10 +318,6 @@ async function openVault(VaultID, playerID) {
 
         try {
             const itensFromPlayer = await getItens(playerID); // Adicionado await
-            console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-            console.log('Itens antes da atualização:', itensFromPlayer);
-            console.log('Itens adicionados:', VaultContent);
-            console.log('Itens após a atualização:', newItensArray);
 
             const newItensArray = [
                 ...itensFromPlayer.filter(item => item !== null), 
@@ -332,8 +328,10 @@ async function openVault(VaultID, playerID) {
                 UPDATE magos SET Itens = ($1) WHERE UID = ($2)
             `, [newItensArray, playerID]);
 
-            console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
-
+            console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+            console.log('Itens antes da atualização:', itensFromPlayer);
+            console.log('Itens adicionados:', VaultContent);
+            console.log('Itens após a atualização:', newItensArray);
             result.status = 200;
             result.success = true;
             result.message = `O cofre ${VaultID} foi aberto com sucesso pelo player de ID ${playerID}`;
