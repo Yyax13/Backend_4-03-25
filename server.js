@@ -454,7 +454,9 @@ async function tome(Spell) {
         }
     } else if (Spell.name == 'Aperire') {
         const string = Spell.target;
+        console.log(string);
         const palavra = await a1z26('d', string); // Adicionado await
+        console.log(palavra);
         await levelUp(Spell.caller); // Adicionado await
         result.status = 200;
         result.success = true;
