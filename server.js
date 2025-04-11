@@ -499,7 +499,7 @@ function a1z26(method, string) {
         return encrypted.substring(0, encrypted.length - separator.length);
     } else if (method === 'd') {
         let split = string.split(separator);
-        let decrypted = "Palavra: ";
+        let decrypted = "";
         console.log("Decrypted:", decrypted);
         console.log("Split:", split);
         for (let j = 0; j < split.length; j++) {
