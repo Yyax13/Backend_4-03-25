@@ -140,35 +140,35 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             Lore: ItemLore,
             Description: ItemDescription
         };
-        const { rows } = await pool.query(`
+        const { rows: insertedRows } = await pool.query(`
             INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
         `, [ItemName, Category, Risk, AcessLevel, Power, Data])
         .then(async () => {
-            console.log(rows[0].id);
+            console.log(insertedRows[0].id);
             async function getItens(UID) {
-            try {
-                const { rows } = await pool.query(`
-                    SELECT Itens FROM magos WHERE UID = ($1)
-                `, [UID]);
-                return rows[0].itens;
-            } catch (err) {
-                console.error(err);
+                try {
+                    const { rows: playerItems } = await pool.query(`
+                        SELECT Itens FROM magos WHERE UID = ($1)
+                    `, [UID]);
+                    return playerItems[0].itens;
+                } catch (err) {
+                    console.error(err);
+                }
             }
-        }
             try {
                 const itensFromPlayer = await getItens(playerID);
                 console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-                const newItensArray = [...itensFromPlayer, rows[0].id];
+                const newItensArray = [...itensFromPlayer, insertedRows[0].id];
                 
                 await pool.query(`
                     UPDATE magos SET Itens = ($1) WHERE UID = ($2)
                 `, [newItensArray, playerID]);
                 console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
 
-                await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].id, playerID]);
+                await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [insertedRows[0].id, playerID]);
                 console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
                 
-                await updatePower(playerID, rows[0].power);
+                await updatePower(playerID, insertedRows[0].power);
             } catch (err) {
                 console.error(err);
             }
@@ -178,7 +178,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             result.success = true;
             result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
             result.others = {
-                ItemID: rows[0].id
+                ItemID: insertedRows[0].id
             };
             return result
 
