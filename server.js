@@ -301,35 +301,41 @@ async function searchVaultContent(VaultID) {
 async function openVault(VaultID, playerID) {
     const result = createResult();
     try {
-        const VaultContent = searchVaultContent(VaultID);
+        const VaultContent = await searchVaultContent(VaultID); // Adicionado await
         console.log(VaultContent);
+
         async function getItens(UID) {
             try {
                 const { rows } = await pool.query(`
                     SELECT Itens FROM magos WHERE UID = ($1)
                 `, [UID]);
-                return rows[0].itens
+                return rows[0]?.itens || []; // Garante que seja um array
             } catch (err) {
                 console.error(err);
+                return [];
             }
-        };
-        try {
-        const itensFromPlayer = await getItens(playerID);
-        console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-        const newItensArray = itensFromPlayer.push(VaultContent)
-        
-        await pool.query(`
-            UPDATE magos SET Itens = ($1) WHERE UID = ($2)
-        `, [newItensArray, playerID]).then(console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray));
-        
-        result.status = 200;
-        result.success = true;
-        result.message = `O cofre ${VaultID} foi aberto com sucesso pelo player de ID ${playerID}`;
-        result.others = {
-            newItensAdded: newItensArray,
-            playerId: playerID
         }
-        return result
+
+        try {
+            const itensFromPlayer = await getItens(playerID); // Adicionado await
+            console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
+
+            const newItensArray = [...itensFromPlayer, ...VaultContent.map(item => item.ItemID)]; // Combina arrays
+
+            await pool.query(`
+                UPDATE magos SET Itens = ($1) WHERE UID = ($2)
+            `, [newItensArray, playerID]);
+
+            console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
+
+            result.status = 200;
+            result.success = true;
+            result.message = `O cofre ${VaultID} foi aberto com sucesso pelo player de ID ${playerID}`;
+            result.others = {
+                newItensAdded: newItensArray,
+                playerId: playerID
+            };
+            return result;
         } catch (err) {
             console.error(err);
             result.status = 500;
@@ -338,9 +344,8 @@ async function openVault(VaultID, playerID) {
             result.others = {
                 error: err
             };
-            console.log(result.message + err);
-            return result
-        };        
+            return result;
+        }
     } catch (err) {
         console.error(err);
         result.status = 500;
@@ -349,10 +354,9 @@ async function openVault(VaultID, playerID) {
         result.others = {
             error: err
         };
-        console.log(result.message + err);
-        return result
-    };
-};
+        return result;
+    }
+}
 
 async function genGuardianSecret(playerID) {
     const wordsMap = {
