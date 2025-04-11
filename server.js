@@ -127,7 +127,7 @@ async function isInJail(playerID) {
 async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
     const result = createResult();
     const {rows} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
-    console.log('PlayerLevel:', playerLevel[0].posicao);
+    console.log('PlayerLevel:', rows[0].posicao);
     if (Number(rows[0].Posicao) <= Risk) {
         try {
             const Data = {
