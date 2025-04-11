@@ -443,7 +443,7 @@ async function tome(Spell) {
                 secret: secret
             };
             return result
-        } else else if (isNumberObject(Spell.target)) {
+        } else if (isNumberObject(Spell.target)) {
             const Target = Spell.Target;
             const { Player } = searchPlayer(Target);
             const LastItem = Player[0].LastItemID;
