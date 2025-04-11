@@ -57,10 +57,10 @@ async function signUp(UserName, UserPass) {
         const { rows } = await pool.query(`
             INSERT INTO magos (UserName, UserPass, Posicao, Jail, RandomInt) VALUES ($1, $2, $3, $4, $5) RETURNING UID
             `, [UserName, HashPass, 3, false, randomNumber]);
-        console.log('Mago cadastrado, UID:', rows[0].UID);
+        console.log('Mago cadastrado, UID:', rows[0].uid);
         result.status = 201;
         result.success = true;
-        result.message = `Mago cadastrado, UID: ${rows[0].UID}`;
+        result.message = `Mago cadastrado, UID: ${rows[0].uid}`;
         return result
     } catch (err) {
         console.error(err);
@@ -81,7 +81,7 @@ async function signIn(UserName, UserPass) {
         const { rows } = await pool.query(`
             SELECT UserPass FROM magos WHERE UserName = ($1)
             `, [UserName])
-        const match = await verifyPass(rows[0].UserPass, await hashPass(UserPass));
+        const match = await verifyPass(UserPass, await hashPass(UserPass));
         if (match) {
             result.status = 200;
             result.success = true;
@@ -109,16 +109,19 @@ async function signIn(UserName, UserPass) {
 
 async function PutInJail(playerID) {
     const { rows } = await pool.query(`UPDATE magos SET Jail = ($1) WHERE UID = ($2) RETURNING UID, Jail`, [true, playerID]);
-    console.log(`O player de UID ${rows[0].UID} está na prisão`)
-    console.log(`${rows[0].UID} Jail status: ${rows[0].Jail}`)
-    return `O player de UID ${rows[0].UID} está na prisão`
+    console.log(`O player de UID ${rows[0].uid} está na prisão`)
+    console.log(`${rows[0].uid} Jail status: ${rows[0].jail}`)
+    return `O player de UID ${rows[0].uid} está na prisão`
 }
 
 async function isInJail(playerID) {
-    const {rows} = pool.query(`
-        SELECT Jail FROM magos WHERE UID = ($1) RETURNING UID, Jail
+    const { rows } = await pool.query(`
+        SELECT Jail FROM magos WHERE UID = ($1)
     `, [playerID]);
-    return rows[0].Jail
+    const Jailed = {
+        state: rows[0].jail
+    }
+    return Jailed
 };
 
 async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Power, ItemLore, ItemDescription) {
@@ -130,8 +133,8 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
         2: 'Absoluto',
         3: 'Iniciante'
     };
-    const playerPosition = PositionMap[playerLevel[0].Posicao]
-    if (playerLevel[0].Posicao >= Risk) {
+    const playerPosition = PositionMap[playerLevel[0].posicao]
+    if (playerLevel[0].posicao >= Risk) {
         try {
             const Data = {
                 Lore: ItemLore,
@@ -141,13 +144,13 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
                 INSERT INTO itens (ItemName, Category, Risk, AcessLevel, Power, Data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ID, Power
                 `, [ItemName, Category, Risk, AcessLevel, Power, Data])
                 .then(async () => {
-                    console.log(rows[0].ID);
+                    console.log(rows[0].id);
                     async function getItens(UID) {
                         try {
                             const { rows } = await pool.query(`
                                 SELECT Itens FROM magos WHERE UID = ($1)
                             `, [UID]);
-                            return rows[0].Itens;
+                            return rows[0].itens;
                         } catch (err) {
                             console.error(err);
                         }
@@ -155,17 +158,17 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
                     try {
                         const itensFromPlayer = await getItens(playerID);
                         console.log(`Itens do player de UID ${playerID}: ${itensFromPlayer}`);
-                        const newItensArray = [...itensFromPlayer, rows[0].ID];
+                        const newItensArray = [...itensFromPlayer, rows[0].id];
                         
                         await pool.query(`
                             UPDATE magos SET Itens = ($1) WHERE UID = ($2)
                         `, [newItensArray, playerID]);
                         console.log('Itens adicionados ao player de UID ' + playerID + '. Itens adicionados: ' + newItensArray);
 
-                        await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].ID, playerID]);
+                        await pool.query(`UPDATE magos SET LastItemID = ($1) WHERE UID = ($2)`, [rows[0].id, playerID]);
                         console.log(`LastItemID do mago de ID ${playerID} foi atualizado.`);
                         
-                        await updatePower(playerID, rows[0].Power);
+                        await updatePower(playerID, rows[0].power);
                     } catch (err) {
                         console.error(err);
                     }
@@ -175,7 +178,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
             result.success = true;
             result.message = `A inserção foi um sucesso, o poder do player e os itens dele já foram atualizados`;
             result.others = {
-                ItemID: rows[0].ID
+                ItemID: rows[0].id
             };
             return result
 
@@ -212,7 +215,7 @@ async function searchItem(ItemID) {
         1: 'Armemento',
         2: 'Relíquia'
     };
-    const categoria = categoryMap[rows[0].Category];
+    const categoria = categoryMap[rows[0].category];
 
     const RiskMap = {
         0: 'Deus',
@@ -220,16 +223,16 @@ async function searchItem(ItemID) {
         2: 'Querubins',
         3: 'Tronos'
     };
-    const Risco = RiskMap[rows[0].Risk];
+    const Risco = RiskMap[rows[0].risk];
 
     const Item = {
-        ID: rows[0].ItemID,
-        Name: rows[0].ItemName,
+        ID: rows[0].itemID,
+        Name: rows[0].itemName,
         Category: categoria,
         Risk: Risco,
-        AcessLevel: rows[0].AcessLevel,
-        Power: rows[0].Power,
-        Data: rows[0].Data //JSON
+        AcessLevel: rows[0].acesslevel,
+        Power: rows[0].power,
+        Data: rows[0].data //JSON
     };
     result.status = 200;
     result.success = true;
@@ -256,22 +259,22 @@ async function searchPlayer(UserName) {
         true: 'Preso',
         false: 'Livre'
     }
-    const Posicao = PositionMap[rows[0].Posicao];
-    const Jail = JailMap[rows[0].Jail];
+    const Posicao = PositionMap[rows[0].posicao];
+    const Jail = JailMap[rows[0].jail];
+    const Player = {
+        UID: rows[0].uid,
+        UserName: rows[0].username,
+        Power: rows[0].power,
+        Itens: rows[0].itens,
+        Posição: Posicao,
+        Jail: Jail,
+        LastItemID: rows[0].lastitemid,
+        RandomInt: rows[0].randomint
+    };
     result.status = 200;
     result.success = true;
     result.message = "Search sucess";
     result.others = Player;
-    const Player = {
-        UID: rows[0].UID,
-        UserName: rows[0].UserName,
-        Power: rows[0].Power,
-        Itens: rows[0].Itens,
-        Posição: Posicao,
-        Jail: Jail,
-        LastItemID: rows[0].LastItemID,
-        RandomInt: rows[0].RandomInt
-    };
     console.log(Player);
     return result
 };
@@ -308,7 +311,7 @@ async function openVault(VaultID, playerID) {
                 const { rows } = await pool.query(`
                     SELECT Itens FROM magos WHERE UID = ($1)
                 `, [UID]);
-                return rows[0].Itens
+                return rows[0].itens
             } catch (err) {
                 console.error(err);
             }
@@ -365,7 +368,7 @@ async function genGuardianSecret(playerID) {
     const { rows } = await pool.query(`
         SELECT RandomInt FROM magos WHERE UID = ($1)
     `, [playerID])
-    const palavra = wordsMap[rows[0].RandomInt];
+    const palavra = wordsMap[rows[0].randomint];
 
     const segredo = palavra.toLowerCase;
     const segredoCriptografado = a1z26('e', segredo);
@@ -378,7 +381,7 @@ async function updatePower(playerID, powerToInsert) {
             const { rows } = await pool.query(`
                 SELECT Power FROM magos WHERE UID = ($1)
             `, [playerID]);
-            return rows[0].Power
+            return rows[0].power
         };
         const actualPower = getPower(playerID);
         const newPower = Number(actualPower) + Number(powerToInsert);
@@ -446,12 +449,12 @@ async function tome(Spell) {
         } else if (isNumberObject(Spell.target)) {
             const Target = Spell.Target;
             const { Player } = searchPlayer(Target);
-            const LastItem = Player[0].LastItemID;
+            const LastItem = Player[0].lastitemid;
             levelUp(Spell.caller);
-            console.log(`Ultimo item do mago ${Player[0].UserName} é: ` + LastItem);
+            console.log(`Ultimo item do mago ${Player[0].username} é: ` + LastItem);
             result.status = 200;
             result.success = true;
-            result.message = (`Ultimo item do mago ${Player[0].UserName} é: ` + LastItem);
+            result.message = (`Ultimo item do mago ${Player[0].username} é: ` + LastItem);
             result.others = {
                 LastItem: LastItem
             };
@@ -522,14 +525,14 @@ async function banPlayer(playerID) {
             SELECT Itens FROM magos WHERE UID = ($1)
         `, [playerID]);
 
-        if (playerItems.length > 0 && playerItems[0].Itens.length > 0) {
-            const items = playerItems[0].Itens;
+        if (playerItems.length > 0 && playerItems[0].itens.length > 0) {
+            const items = playerItems[0].itens;
 
             const { rows: vault } = await pool.query(`
                 INSERT INTO cofres (ItemID) VALUES ($1) RETURNING VaultID
             `, [items]);
 
-            console.log(`Itens do jogador ${playerID} foram colocados no cofre ${vault[0].VaultID}`);
+            console.log(`Itens do jogador ${playerID} foram colocados no cofre ${vault[0].vaultid}`);
         } else {
             console.log(`Jogador ${playerID} não possui itens para colocar em um cofre.`);
         }
@@ -541,7 +544,7 @@ async function banPlayer(playerID) {
         if (rows.length > 0) {
             result.status = 200;
             result.success = true;
-            result.message = `O jogador ${rows[0].UserName} foi banido com sucesso.`;
+            result.message = `O jogador ${rows[0].username} foi banido com sucesso.`;
         } else {
             result.status = 404;
             result.success = false;
@@ -601,15 +604,15 @@ app.post('/api/sign-in', async (req, res) => {
     const result = createResult();
     const {uName, uPass} = req.body;
 
-    const playerInfo = await searchPlayer(uName);
+    const playerInfo = (await searchPlayer(uName));
     const Jail = isInJail(playerInfo.others.UID);
-    if (!Jail) {
+    if (!Jail.state) {
         const signInCall = await signIn(uName, uPass);
         const sessionId = uuidv4();
         sessions[sessionId] = { userId: playerInfo.others.UID, userName: uName };
         res.set('Set-Cookie', `session=${sessionId}`);
         res.status(signInCall.status).json(signInCall);
-    } else if (Jail) {
+    } else if (Jail.state) {
         result.status = 401;
         result.success = false;
         result.message = "User is in Jail";
