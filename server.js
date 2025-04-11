@@ -682,7 +682,7 @@ app.get('/api/guardian-quest', async (req, res) => {
         res.status(401).json({ message: 'User do not have authorization to use this, check if he signed In' });
     }
     const result = createResult();
-    const playerID = req.query.PName;
+    const pName = req.query.PName;
     const vaultID = req.query.VId;
     const secretSendByPlayer = req.query.SSBPlayer;
 
