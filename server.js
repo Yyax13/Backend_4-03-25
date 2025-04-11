@@ -128,7 +128,7 @@ async function insertNewItem(playerID, ItemName, Category, Risk, AcessLevel, Pow
     const result = createResult();
     const {rows} = await pool.query(`SELECT Posicao FROM magos WHERE UID = ($1)`, [playerID]);
     console.log('PlayerLevel:', rows[0].posicao);
-    if (Number(rows[0].Posicao) <= Risk) {
+    if (Number(rows[0].Posicao) < Risk) {
         try {
             const Data = {
                 Lore: ItemLore,
